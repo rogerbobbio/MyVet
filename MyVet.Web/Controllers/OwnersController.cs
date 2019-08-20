@@ -32,8 +32,15 @@ namespace MyVet.Web.Controllers
                 return NotFound();
             }
 
+
             var owner = await _dataContext.Owners
-                .FirstOrDefaultAsync(m => m.Id == id);
+                .Include(o => o.User)
+                .Include(o => o.Pets)
+                .ThenInclude(p => p.PetType)
+                .Include(o => o.Pets)
+                .ThenInclude(p => p.Histories)
+                .FirstOrDefaultAsync(o => o.Id == id);
+
             if (owner == null)
             {
                 return NotFound();
