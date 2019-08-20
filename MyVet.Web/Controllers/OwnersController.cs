@@ -1,8 +1,12 @@
 ﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using MyVet.Web.Data;
 using MyVet.Web.Data.Entities;
+using MyVet.Web.Helpers;
+using MyVet.Web.Models;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -12,10 +16,12 @@ namespace MyVet.Web.Controllers
     public class OwnersController : Controller
     {
         private readonly DataContext _dataContext;
+        private readonly IUserHelper _userHelper;
 
-        public OwnersController(DataContext context)
+        public OwnersController(DataContext context, IUserHelper userHelper)
         {
             _dataContext = context;
+            _userHelper = userHelper;
         }
 
         public IActionResult Index()
@@ -56,16 +62,63 @@ namespace MyVet.Web.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create([Bind("Id")] Owner owner)
+        public async Task<IActionResult> Create(AddUserViewModel model)
         {
             if (ModelState.IsValid)
             {
-                _dataContext.Add(owner);
-                await _dataContext.SaveChangesAsync();
-                return RedirectToAction(nameof(Index));
+                var user = await AddUser(model);
+                if (user == null)
+                {                    
+                    return View(model);
+                }
+
+                var owner = new Owner
+                {
+                    Agendas = new List<Agenda>(),
+                    Pets = new List<Pet>(),
+                    User = user,
+                };
+
+                _dataContext.Owners.Add(owner);
+                try
+                {
+                    await _dataContext.SaveChangesAsync();
+                    return RedirectToAction(nameof(Index));
+                }
+                catch (System.Exception ex)
+                {
+                    ModelState.AddModelError(string.Empty, ex.ToString());
+                    return View(model);
+                }                                
             }
-            return View(owner);
+            return View(model);
         }
+
+        private async Task<User> AddUser(AddUserViewModel view)
+        {
+            var user = new User
+            {
+                Address = view.Address,
+                Document = view.Document,
+                Email = view.Username,
+                FirstName = view.FirstName,
+                LastName = view.LastName,
+                PhoneNumber = view.PhoneNumber,
+                UserName = view.Username
+            };
+
+            var result = await _userHelper.AddUserAsync(user, view.Password);
+            if (result != IdentityResult.Success)
+            {
+                ModelState.AddModelError(string.Empty, result.Errors.FirstOrDefault().Description);
+                return null;
+            }
+
+            var newUser = await _userHelper.GetUserByEmailAsync(view.Username);
+            await _userHelper.AddUserToRoleAsync(newUser, "Customer");
+            return newUser;
+        }
+
 
         public async Task<IActionResult> Edit(int? id)
         {
