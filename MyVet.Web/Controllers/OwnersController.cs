@@ -95,7 +95,7 @@ namespace MyVet.Web.Controllers
                     await _dataContext.SaveChangesAsync();
                     return RedirectToAction(nameof(Index));
                 }
-                catch (System.Exception ex)
+                catch (Exception ex)
                 {
                     ModelState.AddModelError(string.Empty, ex.ToString());
                     return View(model);
@@ -252,5 +252,47 @@ namespace MyVet.Web.Controllers
 
             return View(model);
         }
+
+        public async Task<IActionResult> EditPet(int? id)
+        {
+            if (id == null)
+            {
+                return NotFound();
+            }
+
+            var pet = await _dataContext.Pets
+                .Include(p => p.Owner)
+                .Include(p => p.PetType)
+                .FirstOrDefaultAsync(p => p.Id == id);
+            if (pet == null)
+            {
+                return NotFound();
+            }
+
+            return View(_converterHelper.ToPetViewModel(pet));
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> EditPet(PetViewModel model)
+        {
+            if (ModelState.IsValid)
+            {
+                var path = model.ImageUrl;
+
+                if (model.ImageFile != null)
+                {
+                    path = await _imageHelper.UploadImageAsync(model.ImageFile);
+                }
+
+                var pet = await _converterHelper.ToPetAsync(model, path, false);
+                _dataContext.Pets.Update(pet);
+                await _dataContext.SaveChangesAsync();
+                return RedirectToAction($"Details/{model.OwnerId}");
+            }
+
+            model.PetTypes = _combosHelper.GetComboPetTypes();
+            return View(model);
+        }
+
     }
 }
