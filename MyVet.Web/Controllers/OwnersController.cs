@@ -185,24 +185,26 @@ namespace MyVet.Web.Controllers
             }
 
             var owner = await _dataContext.Owners
+                .Include(p => p.User)
+                .Include(p => p.Pets)
                 .FirstOrDefaultAsync(m => m.Id == id);
             if (owner == null)
             {
                 return NotFound();
             }
 
-            return View(owner);
-        }
+            if (owner.Pets.Count > 0)
+            {
+                ModelState.AddModelError(string.Empty, "The Owner can't be deleted because it has related records.");
+                return RedirectToAction(nameof(Index));
+            }
 
-        [HttpPost, ActionName("Delete")]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> DeleteConfirmed(int id)
-        {
-            var owner = await _dataContext.Owners.FindAsync(id);
+            await _userHelper.DeleteUserAsync(owner.User.Email);
+
             _dataContext.Owners.Remove(owner);
             await _dataContext.SaveChangesAsync();
             return RedirectToAction(nameof(Index));
-        }
+        }        
 
         private bool OwnerExists(int id)
         {
